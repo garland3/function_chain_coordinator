@@ -32,68 +32,22 @@ def scrape_website(url):
     paragraphs = [p.get_text(strip=True) for p in soup.find_all('p')]
     content = ' '.join(paragraphs)
     return content
-
-@register_function(input_type=str, output_type=bool)
+@register_function(input_type=str, output_type=str)
 def send_email_to_engineering(content):
     """
-    Sends an email to the Engineering Department with the scraped content.
+    Sends an email to the Engineering Department with the scraped content and returns the email.
     """
-    # Dummy implementation: Print to console
-    print("Sending email to Engineering Department with the following content:")
-    print(content)
-    # To implement actual email sending, uncomment and configure the following:
-    """
-    import smtplib
-    from email.mime.text import MIMEText
+    email = "Subject: Scraped Content: Machine Learning\n\nWe found some content about machine learning."
+    return email
 
-    sender_email = "your_email@example.com"
-    receiver_email = "engineering@example.com"
-    subject = "Scraped Content: Machine Learning"
-    body = content
-
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
-
-    with smtplib.SMTP('smtp.example.com', 587) as server:
-        server.starttls()
-        server.login(sender_email, 'your_password')
-        server.send_message(msg)
-    """
-    print("Email sent to Engineering Department.")
-    return True
-
-@register_function(input_type=str, output_type=bool)
+@register_function(input_type=str, output_type=str)
 def send_email_to_accounting(content):
     """
-    Sends an email to the Accounting Department with the scraped content.
+    Sends an email to the Accounting Department with the scraped content and returns the email as a string.
     """
-    # Dummy implementation: Print to console
-    print("\n\n--------------------\nSending email to Accounting Department with the following content:")
-    print(content)
-    # To implement actual email sending, uncomment and configure the following:
-    """
-    import smtplib
-    from email.mime.text import MIMEText
+    email = "Subject: Scraped Content: Finance\n\nWe found some content about finance."
+    return email
 
-    sender_email = "your_email@example.com"
-    receiver_email = "accounting@example.com"
-    subject = "Scraped Content: Finance"
-    body = content
-
-    msg = MIMEText(body)
-    msg['Subject'] = subject
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
-
-    with smtplib.SMTP('smtp.example.com', 587) as server:
-        server.starttls()
-        server.login(sender_email, 'your_password')
-        server.send_message(msg)
-    """
-    print("Email sent to Accounting Department.")
-    return True
 @register_function(
     input_type=str,
     output_type=str,

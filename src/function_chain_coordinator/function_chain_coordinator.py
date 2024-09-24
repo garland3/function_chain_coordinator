@@ -47,7 +47,7 @@ logger.handlers = [handler]
 logger.setLevel(logging.INFO)
 
 # Callback type
-Callback = Callable[['Coordinator'], None]
+Callback = Callable[['Coordinator', Dict[str, Any]], None]
 
 class FunctionStep(BaseModel):
     function_name: str
@@ -159,19 +159,31 @@ class RouterNode(FunctionNode):
         raise ValueError(f"No function named '{chosen_function_name}' found among the edges.")
 
     def execute(self, input_value: Any) -> Any:
-        logger.info(f"Router {Colors.OKBLUE}{self.func.__name__}{Colors.ENDC} called. Passing input through unchanged.")
+        logger.info(f"Router {Colors.OKBLUE}{self.func.__name__}{Colors.ENDC} called. Deciding next action.")
         return input_value  # Pass the input through unchanged
+
+# Define Callback Points as Constants
+class CallbackPoints:
+    INITIALIZATION = "initialization"
+    LOOP_START = "loop_start"
+    INNER_LOOP_START = "inner_loop_start"
+    AFTER_NODE_EXECUTION = "after_node_execution"
 
 class Coordinator:
     def __init__(self, openai_api_key: Optional[str] = None, system_prompt: Optional[str] = None):
         self.functions: Dict[str, FunctionNode] = {}
-        self.callbacks: List[Callback] = []
+        self.callbacks: Dict[str, List[Callback]] = {
+            CallbackPoints.INITIALIZATION: [],
+            CallbackPoints.LOOP_START: [],
+            CallbackPoints.INNER_LOOP_START: [],
+            CallbackPoints.AFTER_NODE_EXECUTION: []
+        }
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
             raise ValueError("OpenAI API key must be provided either via parameter or environment variable 'OPENAI_API_KEY'.")
         self.system_prompt = system_prompt or "You are ChatGPT, a helpful assistant."
         openai.api_key = self.openai_api_key
-        logger.info(f"Coordinator {Colors.OKGREEN}initialized{Colors.ENDC}.")
+        logger.info(f"{Colors.OKGREEN}Coordinator initialized.{Colors.ENDC}")
 
     def register_function(
         self,
@@ -216,11 +228,23 @@ class Coordinator:
         source_node.edges.append(target_node)
         logger.info(f"Created edge from '{Colors.OKBLUE}{source_func.__name__}{Colors.ENDC}' to '{Colors.OKBLUE}{target_func.__name__}{Colors.ENDC}'")
 
-    def add_callback(self, callback: Callback):
-        self.callbacks.append(callback)
-        logger.info("Added a new callback.")
+    def add_callback(self, callback_point: str, callback: Callback):
+        if callback_point not in self.callbacks:
+            raise ValueError(f"Invalid callback point: {callback_point}.")
+        self.callbacks[callback_point].append(callback)
+        logger.info(f"Added callback to '{callback_point}' point.")
 
     def run(self, initial_input: Any) -> FunctionResponse:
+        system_state = {
+            "current_node": None,
+            "input_value": initial_input,
+            "output_value": None,
+            "steps": []
+        }
+
+        # Trigger Initialization Callbacks
+        self._trigger_callbacks(CallbackPoints.INITIALIZATION, system_state)
+
         # Identify the starting function(s)
         starting_functions = [fn for fn in self.functions.values() if not any(fn in node.edges for node in self.functions.values())]
         if not starting_functions:
@@ -231,9 +255,30 @@ class Coordinator:
         input_value = initial_input
         steps = []
 
+        # Trigger Loop Start Callbacks
+        self._trigger_callbacks(CallbackPoints.LOOP_START, system_state)
+
         while True:
+            system_state["current_node"] = current_node.func.__name__
+            system_state["input_value"] = input_value
+
             if isinstance(current_node, RouterNode):
+                # Trigger Inner Loop Start Callbacks
+                self._trigger_callbacks(CallbackPoints.INNER_LOOP_START, system_state)
+
                 next_node = current_node.decide_path(input_value)
+
+                # Update system state after deciding path
+                system_state["output_value"] = next_node.func.__name__
+
+                steps.append(FunctionStep(function_name=current_node.func.__name__, input_value=input_value, output_value="Router decided the next function."))
+                logger.info(f"Final output: {Colors.OKGREEN}{next_node.func.__name__}{Colors.ENDC}")
+
+                # Trigger After Node Execution Callbacks
+                self._trigger_callbacks(CallbackPoints.AFTER_NODE_EXECUTION, system_state)
+
+                current_node = next_node
+                break  # Assuming router decides the next step and we execute it next
             else:
                 if len(current_node.edges) > 1:
                     raise ValueError(f"Function '{current_node.func.__name__}' has multiple outgoing edges. Use a router node to handle branching.")
@@ -242,20 +287,40 @@ class Coordinator:
                     output = current_node.execute(input_value)
                     steps.append(FunctionStep(function_name=current_node.func.__name__, input_value=input_value, output_value=output))
                     logger.info(f"Final output: {Colors.OKGREEN}{output}{Colors.ENDC}")
+
+                    # Update system state
+                    system_state["output_value"] = output
+
+                    # Trigger After Node Execution Callbacks
+                    self._trigger_callbacks(CallbackPoints.AFTER_NODE_EXECUTION, system_state)
                     break
                 next_node = current_node.edges[0]
 
-            output = current_node.execute(input_value)
-            steps.append(FunctionStep(function_name=current_node.func.__name__, input_value=input_value, output_value=output))
-            input_value = output
-            current_node = next_node
+                output = current_node.execute(input_value)
+                steps.append(FunctionStep(function_name=current_node.func.__name__, input_value=input_value, output_value=output))
 
-        # Execute callbacks
-        for callback in self.callbacks:
-            callback(self)
+                # Update system state
+                system_state["output_value"] = output
+
+                # Trigger After Node Execution Callbacks
+                self._trigger_callbacks(CallbackPoints.AFTER_NODE_EXECUTION, system_state)
+
+                input_value = output
+                current_node = next_node
+
+        # Execute additional callbacks if any
+        # (Not necessary here as all callbacks are already triggered during the run)
 
         function_response = FunctionResponse(steps=steps, final_output=output)
         return function_response
+
+    def _trigger_callbacks(self, callback_point: str, system_state: Dict[str, Any]):
+        callbacks = self.callbacks.get(callback_point, [])
+        for callback in callbacks:
+            try:
+                callback(self, system_state)
+            except Exception as e:
+                logger.error(f"Error in callback at '{callback_point}': {e}")
 
 def register_function(
     input_type: type,
@@ -285,7 +350,7 @@ class CoordinatorInstance:
     def initialize(cls, openai_api_key: Optional[str] = None, system_prompt: Optional[str] = None):
         if cls._instance is None:
             cls._instance = Coordinator(openai_api_key, system_prompt)
-            logger.info("Coordinator instance initialized.")
+            logger.info(f"{Colors.OKGREEN}Coordinator instance initialized.{Colors.ENDC}")
         return cls._instance
 
     @classmethod
