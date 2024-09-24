@@ -1,0 +1,68 @@
+<!-- templates/result.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dispatch Result</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; }
+        .container { width: 80%; margin: auto; padding: 20px; background-color: #fff; margin-top: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .step { padding: 10px; border-bottom: 1px solid #ccc; }
+        .step:last-child { border-bottom: none; }
+        .final { background-color: #d4edda; padding: 10px; margin-top: 20px; }
+        .button { padding: 10px 20px; background-color: #007bff; border: none; color: #fff; cursor: pointer; text-decoration: none; }
+        .button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>--- Dispatch Result ---</h2>
+        <p><strong>Incoming Call Description:</strong> {{ description }}</p>
+        <h3>Execution Steps:</h3>
+        <div id="steps">
+            <!-- Execution steps will be appended here -->
+        </div>
+        <div class="final">
+            <h3>Final Output:</h3>
+            <p id="final_output">{{ final_output }}</p>
+        </div>
+        <br>
+        <a href="/" class="button">Dispatch Another Call</a>
+    </div>
+
+    <script>
+        const dispatchId = "{{ dispatch_id }}";
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+        ws.onopen = () => {
+            console.log("WebSocket connection established.");
+            // Optionally, send the dispatch_id to the server if needed
+            // ws.send(JSON.stringify({ dispatch_id: dispatchId }));
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const stepsDiv = document.getElementById("steps");
+            const finalOutputP = document.getElementById("final_output");
+
+            // Display current node, input, and output
+            const stepDiv = document.createElement("div");
+            stepDiv.className = "step";
+            stepDiv.innerHTML = `
+                <p><strong>Function:</strong> ${data.current_node}</p>
+                <p><strong>Input:</strong> ${data.input_value}</p>
+                <p><strong>Output:</strong> ${data.output_value}</p>
+            `;
+            stepsDiv.appendChild(stepDiv);
+
+            // Update final output if available
+            if (data.output_value && typeof data.output_value === 'int') {
+                finalOutputP.textContent = data.output_value;
+            }
+        };
+
+        ws.onclose = () => {
+            console.log("WebSocket connection closed.");
+        };
+    </script>
+</body>
+</html>

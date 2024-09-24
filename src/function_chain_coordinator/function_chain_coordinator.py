@@ -358,3 +358,11 @@ class CoordinatorInstance:
         if cls._instance is None:
             raise ValueError("Coordinator is not initialized. Call CoordinatorInstance.initialize(api_key) first.")
         return cls._instance
+
+
+
+class CallbackPoints:
+    INITIALIZATION = "initialization"
+    LOOP_START = "loop_start"
+    INNER_LOOP_START = "inner_loop_start"
+    AFTER_NODE_EXECUTION = "after_node_execution"

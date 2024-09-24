@@ -5,7 +5,8 @@ from .function_chain_coordinator import (
     FunctionStep,
     FunctionResponse,
     FunctionNode,
-    RouterNode
+    RouterNode,
+    CallbackPoints
 )
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     'FunctionStep',
     'FunctionResponse',
     'FunctionNode',
-    'RouterNode'
+    'RouterNode',
+    'CallbackPoints'
 ]

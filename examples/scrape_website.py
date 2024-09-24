@@ -32,6 +32,7 @@ def scrape_website(url):
     paragraphs = [p.get_text(strip=True) for p in soup.find_all('p')]
     content = ' '.join(paragraphs)
     return content
+
 @register_function(input_type=str, output_type=str)
 def send_email_to_engineering(content):
     """
