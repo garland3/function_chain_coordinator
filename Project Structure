@@ -1,0 +1,14 @@
+function_chain_coordinator/
+│
+├── src/
+│   └── function_chain_coordinator/
+│       ├── __init__.py
+│       └── coordinator.py
+│
+├── tests/
+│   └── __init__.py
+│
+├── setup.py
+├── README.md
+├── LICENSE
+└── .gitignore
